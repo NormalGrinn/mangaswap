@@ -13,3 +13,4 @@ pub mod write_santa;
 pub mod unmatch_users;
 pub mod ban_user;
 pub mod unban_user;
+pub mod reveal;

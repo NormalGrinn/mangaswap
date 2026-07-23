@@ -46,6 +46,7 @@ async fn main() {
                 commands::unmatch_users::unmatch_users(),
                 commands::ban_user::ban_user(),
                 commands::unban_user::unban_user(),
+                commands::reveal::reveal(),
             ],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(components::button_interaction::on_component_interaction(ctx, event, framework, data))

@@ -284,16 +284,26 @@ pub fn set_phase(phase: Phase) -> rusqlite::Result<()> {
 }
 
 pub fn rejoin_user(user_id: u64) -> rusqlite::Result<()> {
-    let sql: &str = "
-    UPDATE users
-    SET has_joined = 1
-    WHERE discord_id = ?1;
+    let sql = "
+        UPDATE users
+        SET has_joined = 1
+        WHERE discord_id = ?1;
     ";
+
     let conn = Connection::open(PATH).map_err(|e| {
         eprintln!("Failed to open database: {}", e);
         e
     })?;
-    conn.execute(sql, rusqlite::params![user_id as i64])?;
+
+    let rows_updated = conn.execute(
+        sql,
+        rusqlite::params![user_id as i64],
+    )?;
+
+    if rows_updated == 0 {
+        eprintln!("No user found with Discord ID {}", user_id);
+    }
+
     Ok(())
 }
 
@@ -314,7 +324,7 @@ pub fn ban_user(user_id: u64) -> rusqlite::Result<()> {
 pub fn unban_user(user_id: u64) -> rusqlite::Result<()> {
     let sql: &str = "
     UPDATE users
-    is_banned = 0
+    SET is_banned = 0
     WHERE discord_id = ?1;
     ";
     let conn = Connection::open(PATH).map_err(|e| {
@@ -364,4 +374,130 @@ pub fn ban_and_reassign_user(user_id: u64) -> rusqlite::Result<()> {
     tx.commit()?;
 
     Ok(())
+}
+
+pub fn reset_giftees_and_submissions() -> rusqlite::Result<()> {
+    let sql = "
+    UPDATE users
+    SET submitted_gift = NULL, giftee_id = NULL;
+    ";
+    let conn = Connection::open(PATH).map_err(|e| {
+        eprintln!("Failed to open database: {}", e);
+        e
+    })?;
+    conn.execute(sql, ())?;
+    Ok(())
+}
+pub fn match_users() -> rusqlite::Result<()> {
+    let mut conn = Connection::open(PATH)?;
+    let tx = conn.transaction()?;
+
+    let user_ids: Vec<i64> = {
+        let mut stmt = tx.prepare(
+            "
+            SELECT discord_id
+            FROM users
+            WHERE letter IS NOT NULL
+              AND has_joined = 1
+              AND is_banned = 0
+            ORDER BY letter
+            ",
+        )?;
+
+        stmt.query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<Vec<i64>>>()?
+    };
+
+    if user_ids.len() < 2 {
+        tx.commit()?;
+        return Ok(());
+    }
+
+    for i in 0..user_ids.len() {
+        let user_id = user_ids[i];
+        let next_user_id = user_ids[(i + 1) % user_ids.len()];
+
+        tx.execute(
+            "
+            UPDATE users
+            SET giftee_id = ?1
+            WHERE discord_id = ?2
+            ",
+            params![next_user_id, user_id],
+        )?;
+    }
+
+    tx.commit()?;
+
+    Ok(())
+}
+
+
+pub fn is_user_banned(user_id: u64) -> rusqlite::Result<bool> {
+    let conn = Connection::open(PATH)?;
+
+    let is_banned: Option<bool> = conn
+        .query_row(
+            "
+            SELECT is_banned
+            FROM users
+            WHERE discord_id = ?1
+            ",
+            params![user_id as i64],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    Ok(is_banned.unwrap_or(false))
+}
+
+pub fn get_matching_order() -> rusqlite::Result<Vec<(u64, String)>> {
+    let conn = Connection::open(PATH)?;
+
+    let (start_id, start_name): (i64, String) = conn.query_row(
+        "
+        SELECT discord_id, username
+        FROM users
+        WHERE has_joined = 1
+          AND is_banned = 0
+          AND giftee_id IS NOT NULL
+        ORDER BY letter
+        LIMIT 1
+        ",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    let mut result = Vec::new();
+
+    let mut current_id = start_id;
+    let mut current_name = start_name;
+
+    loop {
+        result.push((current_id as u64, current_name));
+
+        let next: (i64, String) = conn.query_row(
+            "
+            SELECT discord_id, username
+            FROM users
+            WHERE discord_id = (
+                SELECT giftee_id
+                FROM users
+                WHERE discord_id = ?1
+            )
+            ",
+            params![current_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        current_id = next.0;
+        current_name = next.1;
+
+        // We've completed the circle.
+        if current_id == start_id {
+            break;
+        }
+    }
+
+    Ok(result)
 }

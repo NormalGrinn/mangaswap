@@ -9,7 +9,7 @@ pub async fn create_button(
 ) -> Result<(), Error> {
     if !ensure_host_role(&ctx, ctx.author()).await? {return Ok(())}
     let join_button = CreateButton::new("Join")
-        .label("Join the anniversary event")
+        .label("Join Manga Swap")
         .style(serenity::all::ButtonStyle::Primary);
     let buttons: Vec<CreateButton> = vec![join_button];
     let action_row = vec![CreateActionRow::Buttons(buttons)];

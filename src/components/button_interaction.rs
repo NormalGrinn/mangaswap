@@ -19,12 +19,33 @@ pub async fn on_component_interaction(
                         let response_date = CreateInteractionResponseMessage::new().ephemeral(true);
                         let interaction_response = CreateInteractionResponse::Defer(response_date);
                         let phase = database::get_phase()?;
+
+
                         if phase != Phase::Join {
                             let message = CreateInteractionResponseFollowup::new()
                             .content("You cannot join in this phase!").ephemeral(true);
                             component_interaction.create_followup(&ctx.http, message).await?;
                             return Ok(())
                         }
+                        
+
+                        let is_banned = database::is_user_banned(user_id)?;
+                        if is_banned {
+                            component_interaction
+                                .create_response(
+                                    &ctx.http,
+                                    CreateInteractionResponse::Message(
+                                        CreateInteractionResponseMessage::new()
+                                            .content("You are currently banned and thus cannot join.")
+                                            .ephemeral(true),
+                                    ),
+                                )
+                                .await?;
+
+                            return Ok(());
+                        }
+
+
                         component_interaction.create_response(&ctx, interaction_response).await?;
                         let info: Result<_, _> = database::get_userinfo_by_id(user_id).await;
                         match info {

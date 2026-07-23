@@ -17,6 +17,7 @@ pub async fn set_phase(
         ctx.send(CreateReply::default()
             .content(message)
             .ephemeral(true)).await?;
+        return Ok(())
     }
 
     match phase {
@@ -27,8 +28,23 @@ pub async fn set_phase(
                     .content(message)
                     .ephemeral(true)).await?;
             } else {
-                // Reset everything
-                database::set_phase(phase)?;
+                let res = database::reset_giftees_and_submissions();
+                match res {
+                    Ok(_) => {
+                        database::set_phase(phase)?;
+                        let message = format!("Succesfully changed phase from read to join.");
+                        ctx.send(CreateReply::default()
+                            .content(message)
+                            .ephemeral(true)).await?;
+                    },
+                    Err(e) => {
+                        let message = format!("Error changing from read to join and resetting gifts.");
+                        ctx.send(CreateReply::default()
+                        .content(message)
+                        .ephemeral(true)).await?;
+                        eprintln!("Error changing phases and ressetting gifts: {}", e);
+                    },
+                }
             }
         },
         Phase::Swap => {
@@ -38,8 +54,23 @@ pub async fn set_phase(
                     .content(message)
                     .ephemeral(true)).await?;
             } else {
-                // Match users
-                database::set_phase(phase)?;
+                let res = database::match_users();
+                match res {
+                    Ok(_) => {
+                        database::set_phase(phase)?;
+                        let message = format!("Succesfully changed phase from read to swap.");
+                        ctx.send(CreateReply::default()
+                            .content(message)
+                            .ephemeral(true)).await?;
+                    },
+                    Err(e) => {
+                        let message = format!("Error changing from read to join and matching users.");
+                        ctx.send(CreateReply::default()
+                        .content(message)
+                        .ephemeral(true)).await?;
+                        eprintln!("Error changing phases and matching users: {}", e);
+                    },
+                }
             }
         },
         Phase::Read => {
