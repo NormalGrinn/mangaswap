@@ -324,3 +324,44 @@ pub fn unban_user(user_id: u64) -> rusqlite::Result<()> {
     conn.execute(sql, rusqlite::params![user_id as i64])?;
     Ok(())
 }
+
+pub fn ban_and_reassign_user(user_id: u64) -> rusqlite::Result<()> {
+    let mut conn = Connection::open(PATH)?;
+
+    let tx = conn.transaction()?;
+
+    let giftee_id: i64 = tx.query_row(
+        "
+        SELECT giftee_id
+        FROM users
+        WHERE discord_id = ?1
+        ",
+        params![user_id as i64],
+        |row| row.get(0),
+    )?;
+
+    tx.execute(
+        "
+        UPDATE users
+        SET giftee_id = ?1
+        WHERE giftee_id = ?2
+        ",
+        params![giftee_id, user_id as i64],
+    )?;
+
+    tx.execute(
+        "
+        UPDATE users
+        SET
+            has_joined = 0,
+            is_banned = 1,
+            giftee_id = NULL
+        WHERE discord_id = ?1
+        ",
+        params![user_id as i64],
+    )?;
+
+    tx.commit()?;
+
+    Ok(())
+}

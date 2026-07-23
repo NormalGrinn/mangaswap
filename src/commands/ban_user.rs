@@ -13,27 +13,41 @@ pub async fn ban_user(
     
     let current_phase = database::get_phase()?;
     
-    let res = database::ban_user(user.id.get());
-    match res {
-        Ok(_) => {
-            if current_phase == Phase::Join {
+    if current_phase == Phase::Join {
+        let res = database::ban_user(user.id.get());
+        match res {
+            Ok(_) => {
                 let message = format!("Banned user: {}", user.name);
                 ctx.send(CreateReply::default()
                     .content(message)
                     .ephemeral(true)).await?;
-                } else {
-                
+            },
+            Err(e) => {
+                let message = format!("Error banning user: {}", user.name);
+                ctx.send(CreateReply::default()
+                    .content(message)
+                    .ephemeral(true)).await?;
+                    eprintln!("Error banning user: {} {}", user.name, e);
             }
-        },
-        Err(e) => {
-            let message = format!("Error banning user: {}", user.name);
-            ctx.send(CreateReply::default()
-                .content(message)
-                .ephemeral(true)).await?;
-                eprintln!("Error banning user: {} {}", user.name, e);
+        }
+    } else {
+        let res = database::ban_and_reassign_user(user.id.get());
+        match res {
+            Ok(_) => {
+                let message = format!("Banned user: {}", user.name);
+                ctx.send(CreateReply::default()
+                    .content(message)
+                    .ephemeral(true)).await?;
+            },
+            Err(e) => {
+                let message = format!("Error banning user: {}", user.name);
+                ctx.send(CreateReply::default()
+                    .content(message)
+                    .ephemeral(true)).await?;
+                    eprintln!("Error banning user: {} {}", user.name, e);
+            }
         }
     }
-
 
     Ok(())
 }
