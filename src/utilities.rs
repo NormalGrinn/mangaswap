@@ -69,7 +69,7 @@ pub fn embed_builder(message: &str, title: &str, hello_message: &str, goodbye_me
     use serenity::builder::{CreateEmbed, CreateEmbedFooter};
     use serenity::model::colour::Colour;
 
-    let footer = CreateEmbedFooter::new("Swap Anniversary");
+    let footer = CreateEmbedFooter::new("Manga Swap");
     let mut embed = CreateEmbed::new()
         .footer(footer)
         .color(Colour::MAGENTA)
